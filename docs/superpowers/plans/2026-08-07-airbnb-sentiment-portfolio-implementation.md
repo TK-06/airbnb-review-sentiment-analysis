@@ -620,6 +620,10 @@ df.head(1000).to_csv("../data/raw_sample.csv", index=False)
 
 # %%
 df = df.drop(columns=["id", "reviewer_id", "listing_id"])
+# A small number of rows have a genuinely null comment (no text to analyze at
+# all) - drop them outright rather than stringifying NaN into a fake "nan"
+# token that would pollute cleaned_comments and, later, the TF-IDF vocabulary.
+df = df.dropna(subset=["comments"])
 df["comments"] = df["comments"].astype(str)
 
 stop_words = set(stopwords.words("english"))
