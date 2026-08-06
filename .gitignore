@@ -1,1 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/raw/*
+!data/raw/.gitkeep
+*.csv.gz
+.ipynb_checkpoints/
+catboost_info/
+.DS_Store
+*.egg-info/
 .superpowers/
