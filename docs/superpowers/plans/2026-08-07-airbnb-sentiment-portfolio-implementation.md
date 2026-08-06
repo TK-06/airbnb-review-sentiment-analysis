@@ -115,6 +115,7 @@ data/raw/*
 catboost_info/
 .DS_Store
 *.egg-info/
+.superpowers/
 ```
 
 - [ ] **Step 4: `touch data/raw/.gitkeep`** (so the empty gitignored dir still exists after clone)
