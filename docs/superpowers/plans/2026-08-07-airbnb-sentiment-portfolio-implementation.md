@@ -634,6 +634,18 @@ df["cleaned_comments"] = df["comments"].progress_apply(
     lambda text: clean_text(text, stop_words, lemmatizer, stemmer)
 )
 
+# %% [markdown]
+# Some comments (e.g. URL-only, emoji-only, or all-stopword text) clean down
+# to an empty string. These carry no signal to analyze and, if kept, round-trip
+# through CSV as NaN (pandas writes "" as a blank cell, and reads a blank cell
+# back as NaN by default) - drop them now while they're still recognizable as
+# empty strings, rather than let them resurface as a confusing null later.
+
+# %%
+empty_after_cleaning = (df["cleaned_comments"].str.strip() == "").sum()
+print("Empty after cleaning (dropping):", empty_after_cleaning)
+df = df[df["cleaned_comments"].str.strip() != ""]
+
 # %%
 print("Duplicates before dedup:", df.duplicated().sum())
 df = df.drop_duplicates()
