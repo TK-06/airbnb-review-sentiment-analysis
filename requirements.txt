@@ -16,4 +16,3 @@ requests
 tqdm
 jupyter
 jupytext
-pytest
