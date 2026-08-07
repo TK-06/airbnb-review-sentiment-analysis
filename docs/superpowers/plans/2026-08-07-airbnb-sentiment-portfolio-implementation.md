@@ -2,11 +2,35 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn a single inherited notebook into a working, honestly-attributed, end-to-end sentiment analysis project (data sourcing → cleaning → 7 classical ML models → fixed LSTM → fixed DistilBERT → working Dash dashboard), tested, documented, and pushed to a new public GitHub repo.
+**Goal:** Turn a single inherited notebook into a working, honestly-attributed, end-to-end sentiment analysis project (data sourcing → cleaning → 7 classical ML models → fixed LSTM → fixed DistilBERT → working Dash dashboard), documented and pushed to a new public GitHub repo.
 
-**Architecture:** A small `src/` package holds pure, unit-tested text-cleaning and class-balancing logic shared by notebook 1. Four notebooks (`1_data_preprocessing`, `2_classical_ml`, `3_deep_learning_lstm`, `4_llm_bert`) form the pipeline, each producing artifacts the next stage (or the dashboard) consumes. A `dashboard/` package separates data/model loading (`data.py`, unit-tested) from chart-building (`charts.py`, unit-tested) from Dash wiring (`app.py`, smoke-tested manually — Dash callback testing is out of scope).
+**Architecture:** Four notebooks (`1_data_preprocessing`, `2_classical_ml`, `3_deep_learning_lstm`, `4_llm_bert`) form the pipeline, each producing artifacts the next stage (or the dashboard) consumes. Cleaning/balancing/download logic lives inline in notebook 1's own cells — no separate importable package. A `dashboard/` package separates data/model loading (`data.py`) from chart-building (`charts.py`) from Dash wiring (`app.py`).
 
-**Tech Stack:** Python 3.13, pandas, scikit-learn, NLTK, TextBlob, TensorFlow + tf-keras, HuggingFace Transformers (DistilBERT), Dash + Plotly, pytest, jupytext (for building notebooks from readable `.py` source).
+**Tech Stack:** Python 3.13, pandas, scikit-learn, NLTK, TextBlob, TensorFlow + tf-keras, HuggingFace Transformers (DistilBERT), Dash + Plotly, jupytext (for building notebooks from readable `.py` source).
+
+## Amendment (mid-plan, after Task 3): notebook-native, user runs notebooks
+
+Tasks 1-2 originally built a `src/` package with a full pytest unit-test suite
+(`tests/`), following a general software-engineering plan template. Partway
+through Task 3, the user asked to simplify: this is a notebook-driven ML
+portfolio project, not a production software package, and that much
+infrastructure was more scaffolding than the project needs. Also, from this
+point on, **the user runs all notebook executions themselves** — tasks that
+write notebook/dashboard code stop at "code written, ready to run," not
+"executed and verified."
+
+Concretely, as of commit `1826cf3`:
+- `src/`, `scripts/`, `tests/`, and `pyproject.toml` are deleted.
+- `notebooks/1_data_preprocessing.py` has the (identical, already-verified)
+  text-cleaning, class-balancing, and download logic inlined directly into
+  its own cells instead of importing from `src/`/`scripts/`.
+- `data/cleaned/reviews.csv` and `data/raw_sample.csv` are already committed
+  and correct (0 nulls, classes balanced at 6591/6591/6591) — produced before
+  the pivot, kept as-is since the inlining is a pure code reorganization with
+  identical logic, not a data change.
+- Tasks 4 onward are revised below to drop `pytest`/TDD steps and stop short
+  of executing notebooks or running dashboard smoke tests — those steps are
+  now the user's, not an implementer subagent's.
 
 ## Global Constraints
 
@@ -15,8 +39,10 @@
 - Only `models/tfidf_vectorizer.pkl` and `models/gradient_boosting_model.pkl` are committed. No other classifier `.pkl`, no LSTM/BERT weights.
 - No live deployment — local-run only, documented setup instructions.
 - Dashboard stays a Dash app (not rebuilt in Streamlit).
-- Target Python 3.13 in a dedicated venv; do not add speculative version-pinning unless an actual install failure is hit during implementation.
+- Target Python 3.13 in a dedicated venv (at `/c/pyvenvs/airbnb-sentiment`, not `.venv/` in the repo — a Windows long-path workaround from Task 1); do not add speculative version-pinning unless an actual install failure is hit during implementation.
 - LICENSE is MIT, crediting both Taimour Karim (original pipeline, 2024-present) and TK-06 (this implementation, 2026).
+- No `src/`, `scripts/`, or `tests/` — no separate importable package for shared logic, no pytest suite. Notebook 1 is self-contained (inlines its own helpers). `dashboard/` stays a plain, un-tested application package.
+- Implementer subagents write code and stop — they do not execute notebooks or run dashboard smoke tests. The user runs those themselves.
 
 ---
 
@@ -24,39 +50,26 @@
 
 ```
 airbnb-review-sentiment-analysis/
-├── README.md, requirements.txt, .gitignore, LICENSE, pyproject.toml
+├── README.md, requirements.txt, .gitignore, LICENSE
 ├── docs/superpowers/specs/, docs/superpowers/plans/
-├── src/
-│   ├── __init__.py
-│   ├── text_cleaning.py     # pure text-cleaning functions
-│   └── balance.py           # dynamic class balancing
-├── scripts/
-│   ├── __init__.py
-│   └── download_raw_data.py # downloads + decompresses InsideAirbnb London reviews
 ├── notebooks/
-│   ├── 1_data_preprocessing.ipynb (+ paired .py via jupytext)
+│   ├── 1_data_preprocessing.ipynb (+ paired .py via jupytext) — DONE
 │   ├── 2_classical_ml.ipynb
 │   ├── 3_deep_learning_lstm.ipynb (+ paired .py)
 │   └── 4_llm_bert.ipynb (+ paired .py)
 ├── data/
-│   ├── raw/                 # gitignored — created by download script
-│   ├── cleaned/reviews.csv  # committed, produced by notebook 1
-│   ├── raw_sample.csv       # committed, small illustrative pre-cleaning sample
+│   ├── raw/                 # gitignored — created by notebook 1's download cell
+│   ├── cleaned/reviews.csv  # committed, produced by notebook 1 — DONE
+│   ├── raw_sample.csv       # committed, small illustrative pre-cleaning sample — DONE
 │   └── user_reviews.csv     # committed seed file for dashboard's review form
 ├── models/
 │   ├── tfidf_vectorizer.pkl
 │   └── gradient_boosting_model.pkl
-├── dashboard/
-│   ├── __init__.py
-│   ├── data.py               # load_data, load_models, predict_sentiment, load_raw_sample, save_user_review
-│   ├── charts.py              # chart builders
-│   └── app.py                 # Dash layout & callbacks
-└── tests/
-    ├── test_text_cleaning.py
-    ├── test_balance.py
-    ├── test_download_raw_data.py
-    ├── test_pipeline.py
-    └── test_charts.py
+└── dashboard/
+    ├── __init__.py
+    ├── data.py               # load_data, load_models, predict_sentiment, load_raw_sample, save_user_review
+    ├── charts.py              # chart builders
+    └── app.py                 # Dash layout & callbacks
 ```
 
 ---
@@ -739,7 +752,7 @@ git commit -m "Add notebook 1: source raw InsideAirbnb data, clean, label, balan
 
 **Interfaces:**
 - Consumes: `data/cleaned/reviews.csv` (Task 3).
-- Produces: `models/tfidf_vectorizer.pkl`, `models/gradient_boosting_model.pkl` — consumed by Task 8 (dashboard/data.py tests) and Task 9 (dashboard app).
+- Produces: `notebooks/2_classical_ml.ipynb`, ready to run. The user runs it themselves and it will produce `models/tfidf_vectorizer.pkl`, `models/gradient_boosting_model.pkl` — needed by Task 7 (dashboard/data.py) and Task 9 (dashboard app), which therefore cannot be smoke-tested until the user has run this notebook.
 
 This notebook already exists and works (7 classifiers trained, Gradient Boosting the historical winner at ~90.2% on the old data snapshot). Rather than rewriting it, copy it as-is and apply precise, minimal edits: point it at the new data/model paths, drop 6 of the 7 `joblib.dump` calls (only the vectorizer + winning Gradient Boosting model get committed, per the models-scope decision — the other 5 classifiers' results are already captured in this notebook's own printed metrics), remove 3 unused imports, and fix two real bugs found while reading it: `sns.distplot` was removed from modern seaborn, and two cells have a copy-paste bug mislabeling the Logistic Regression confusion matrix/report as "XGBoost".
 
@@ -751,7 +764,7 @@ cp "/c/Users/Palan/OneDrive/Documents/computer_programming/Projects/2_machineLea
 
 - [ ] **Step 2: Write and run a one-off patch script**
 
-Create `scripts/_patch_notebook_2.py` (temporary — delete after use in Step 4):
+Create `_patch_notebook_2.py` at the repo root (temporary — delete after use in Step 4; there's no `scripts/` package anymore, this is just a throwaway file):
 
 ```python
 """One-off patch script for notebooks/2_classical_ml.ipynb. Run once, then delete."""
@@ -829,7 +842,7 @@ nbformat.write(nb, path)
 print("Patched notebooks/2_classical_ml.ipynb")
 ```
 
-Run: `python scripts/_patch_notebook_2.py`
+Run: `python _patch_notebook_2.py`
 Expected: prints `Patched notebooks/2_classical_ml.ipynb`
 
 - [ ] **Step 3: Spot-check the patch**
@@ -851,39 +864,17 @@ Expected: cell 6 shows the new data path, cells 31/56 show the new `../models/` 
 - [ ] **Step 4: Delete the one-off patch script**
 
 ```bash
-rm scripts/_patch_notebook_2.py
+rm _patch_notebook_2.py
 ```
 
-- [ ] **Step 5: Execute the notebook end to end**
+- [ ] **Step 5: Commit the patched notebook (code only — do not execute it)**
 
 ```bash
-jupyter nbconvert --to notebook --execute --inplace notebooks/2_classical_ml.ipynb
-```
-
-Expected: completes without error (dataset is ~11-12k rows, all 7 classical models train quickly — well under a minute total).
-
-- [ ] **Step 6: Verify the committed model artifacts and record results**
-
-```bash
-python -c "
-import joblib
-v = joblib.load('models/tfidf_vectorizer.pkl')
-m = joblib.load('models/gradient_boosting_model.pkl')
-pred = m.predict(v.transform(['the host was wonderful and the flat was spotless']))
-print('sample prediction:', pred[0])
-assert pred[0] in {'negative', 'neutral', 'positive'}
-print('OK')
-"
-```
-
-Expected: prints a sentiment label and `OK`. Also open the notebook's Gradient Boosting cell output and note the actual accuracy/precision/recall/F1 — these real numbers (not Taimour's original 90.2%, since the data differs) go into the README results table in Task 10.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add notebooks/2_classical_ml.ipynb models/tfidf_vectorizer.pkl models/gradient_boosting_model.pkl
+git add notebooks/2_classical_ml.ipynb
 git commit -m "Add notebook 2: classical ML (7 classifiers), fix seaborn/copy-paste bugs"
 ```
+
+**Stop here.** Do not run `jupyter nbconvert --execute` on this notebook — the user runs it themselves. Report back noting that `models/tfidf_vectorizer.pkl` and `models/gradient_boosting_model.pkl` won't exist until the user does, which blocks Tasks 7 and 9's own verification until then.
 
 ---
 
@@ -1021,20 +1012,14 @@ assert accuracy > 0.40, "Model is not clearly beating the random-guess baseline 
 jupytext --to notebook notebooks/3_deep_learning_lstm.py
 ```
 
-- [ ] **Step 3: Execute the notebook**
-
-```bash
-jupyter nbconvert --to notebook --execute --inplace notebooks/3_deep_learning_lstm.ipynb
-```
-
-Expected: completes without error, no assertion failure. If the final `assert` trips, the model is still not learning — re-check the vocabulary size, or the `processed_comments` column for degenerate (near-empty) text before concluding the bug fix is complete. Note the actual final test accuracy for the README.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit (code only — do not execute it)**
 
 ```bash
 git add notebooks/3_deep_learning_lstm.py notebooks/3_deep_learning_lstm.ipynb
 git commit -m "Add notebook 3: LSTM, fixed vocabulary-size bug that prevented learning"
 ```
+
+**Stop here.** Do not run `jupyter nbconvert --execute` — the user runs it themselves and will see the notebook's own `assert accuracy > 0.40` check confirm (or catch a regression of) the bug fix. Report back noting the notebook is unexecuted and its real test accuracy for the README (Task 10) won't be known until the user runs it.
 
 ---
 
@@ -1181,20 +1166,14 @@ assert result[1] > 0.40, "Model is not clearly beating the random-guess baseline
 jupytext --to notebook notebooks/4_llm_bert.py
 ```
 
-- [ ] **Step 3: Execute the notebook**
-
-```bash
-jupyter nbconvert --to notebook --execute --inplace notebooks/4_llm_bert.ipynb
-```
-
-Expected: completes without error, no assertion failure. This is the slowest notebook — DistilBERT fine-tuning on CPU; expect it to take real wall-clock time (could be 10+ minutes depending on hardware). If it's impractically slow, reduce `max_length` further or subsample `df` before tokenizing (noted in the notebook itself). Note the actual final test accuracy for the README.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit (code only — do not execute it)**
 
 ```bash
 git add notebooks/4_llm_bert.py notebooks/4_llm_bert.ipynb
 git commit -m "Add notebook 4: DistilBERT, fixed optimizer-object bug that prevented learning"
 ```
+
+**Stop here.** Do not run `jupyter nbconvert --execute` — this is the slowest notebook (DistilBERT fine-tuning on CPU, likely 10+ minutes) and the user runs it themselves. If it's impractically slow for them, the notebook already notes reducing `max_length` or subsampling `df` before tokenizing as options. Report back noting the notebook is unexecuted and its real test accuracy for the README (Task 10) won't be known until the user runs it.
 
 ---
 
@@ -1202,11 +1181,12 @@ git commit -m "Add notebook 4: DistilBERT, fixed optimizer-object bug that preve
 
 **Files:**
 - Create: `dashboard/data.py`
-- Test: `tests/test_pipeline.py`
 
 **Interfaces:**
-- Consumes: `data/cleaned/reviews.csv`, `data/raw_sample.csv`, `data/user_reviews.csv`, `models/tfidf_vectorizer.pkl`, `models/gradient_boosting_model.pkl` (all from Tasks 3-4).
+- Consumes: `data/cleaned/reviews.csv`, `data/raw_sample.csv`, `data/user_reviews.csv` (Task 3), `models/tfidf_vectorizer.pkl`, `models/gradient_boosting_model.pkl` (Task 4 — **not runnable yet**, the user hasn't executed notebook 2 at this point in the plan).
 - Produces: `load_data() -> pd.DataFrame`, `load_raw_sample() -> pd.DataFrame`, `load_models() -> (vectorizer, model)`, `predict_sentiment(text, vectorizer, model) -> str`, `save_user_review(name, review, sentiment) -> None`. Consumed by Task 9 (`dashboard/app.py`).
+
+No test suite for this project (see Amendment above) — write the module directly, sanity-check what's checkable now, and note what isn't yet.
 
 - [ ] **Step 1: Create the seed `data/user_reviews.csv`**
 
@@ -1214,62 +1194,7 @@ git commit -m "Add notebook 4: DistilBERT, fixed optimizer-object bug that preve
 echo "name,review,sentiment" > data/user_reviews.csv
 ```
 
-- [ ] **Step 2: Write the failing tests — `tests/test_pipeline.py`**
-
-```python
-import pandas as pd
-import pytest
-
-from dashboard.data import load_data, load_models, load_raw_sample, predict_sentiment
-
-
-def test_load_data_returns_expected_columns():
-    df = load_data()
-    expected = {
-        "date", "reviewer_name", "comments",
-        "cleaned_comments", "polarity", "sentiment",
-    }
-    assert expected.issubset(set(df.columns))
-    assert len(df) > 0
-
-
-def test_load_data_has_no_nulls():
-    df = load_data()
-    assert df.isnull().sum().sum() == 0
-
-
-def test_load_raw_sample_returns_pre_cleaning_columns():
-    df = load_raw_sample()
-    assert "comments" in df.columns
-    assert len(df) > 0
-
-
-def test_load_models_returns_fitted_vectorizer_and_classifier():
-    vectorizer, model = load_models()
-    assert hasattr(vectorizer, "transform")
-    assert hasattr(model, "predict")
-
-
-def test_predict_sentiment_returns_valid_label():
-    vectorizer, model = load_models()
-    result = predict_sentiment(
-        "The host was amazing and the room was spotless", vectorizer, model
-    )
-    assert result in {"negative", "neutral", "positive"}
-
-
-def test_predict_sentiment_rejects_empty_string():
-    vectorizer, model = load_models()
-    with pytest.raises(ValueError):
-        predict_sentiment("", vectorizer, model)
-```
-
-- [ ] **Step 3: Run tests to verify they fail**
-
-Run: `pytest tests/test_pipeline.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'dashboard.data'`
-
-- [ ] **Step 4: Write `dashboard/data.py`**
+- [ ] **Step 2: Write `dashboard/data.py`**
 
 ```python
 """Data and model loading for the sentiment dashboard."""
@@ -1317,17 +1242,32 @@ def save_user_review(name: str, review: str, sentiment: str) -> None:
     row.to_csv(USER_REVIEWS_PATH, mode="a", header=False, index=False)
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 3: Sanity-check what's checkable right now**
 
-Run: `pytest tests/test_pipeline.py -v`
-Expected: 6 passed
-
-- [ ] **Step 6: Commit**
+`models/*.pkl` don't exist yet (the user hasn't run notebook 2), so `load_models()` and `predict_sentiment()` can't be exercised end-to-end yet. Check what can be:
 
 ```bash
-git add dashboard/data.py tests/test_pipeline.py data/user_reviews.csv
-git commit -m "Add dashboard data module with tests"
+python -c "
+from dashboard.data import load_data, load_raw_sample
+df = load_data()
+print(df.shape, df.columns.tolist())
+assert df.isnull().sum().sum() == 0
+raw = load_raw_sample()
+print(raw.shape, raw.columns.tolist())
+print('OK')
+"
 ```
+
+Expected: prints shapes/columns and `OK`. If this fails, fix `dashboard/data.py` before moving on — this part has everything it needs (Task 3's outputs already exist).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add dashboard/data.py data/user_reviews.csv
+git commit -m "Add dashboard data module"
+```
+
+Note in your report that `load_models()`/`predict_sentiment()` are untested pending the user running notebook 2 (Task 4).
 
 ---
 
@@ -1335,7 +1275,6 @@ git commit -m "Add dashboard data module with tests"
 
 **Files:**
 - Create: `dashboard/charts.py`
-- Test: `tests/test_charts.py`
 
 **Interfaces:**
 - Consumes: a `pd.DataFrame` with columns `reviewer_name, sentiment, cleaned_comments` (matches `load_data()` output from Task 7).
@@ -1343,82 +1282,9 @@ git commit -m "Add dashboard data module with tests"
 
 The original `charts.py` (pulled from source repo) has three real bugs beyond cosmetics: `circle()` and the dropped `bubble()`/`polar_area()` return hardcoded fake data instead of computing anything from `df` (per the models-scope-adjacent decision to remove fake-data stubs — `circle()` gets the same fix rather than staying inconsistent); `create_graph2()` claims to show each top reviewer's positive/neutral/negative split but actually plots the *same* total-count values three times in different colors — it never groups by sentiment at all; and a module-level function is named `wordcloud`, shadowing the imported `wordcloud` package it needs. All three are fixed below. Every chart also had a literal `<b>text<b>` HTML bug (missing closing slash) — fixed throughout.
 
-- [ ] **Step 1: Write the failing tests — `tests/test_charts.py`**
+No test suite for this project (see Amendment above) — write the module, then use the manual verification script in Step 2 (adapted from what would otherwise be the test cases) to confirm the three bug fixes actually work, since none of this depends on the not-yet-existing models.
 
-```python
-import pandas as pd
-import plotly.graph_objects as go
-
-from dashboard.charts import (
-    circle,
-    create_graph,
-    create_graph2,
-    generate_wordcloud,
-    time_sentiment,
-    time_series,
-)
-
-
-def _sample_df():
-    return pd.DataFrame({
-        "reviewer_name": ["Alice", "Bob", "Alice", "Carol", "Bob", "Alice"],
-        "sentiment": ["positive", "negative", "neutral", "positive", "positive", "negative"],
-        "cleaned_comments": [
-            "great stay", "bad service", "ok place",
-            "lovely host", "would return", "too noisy",
-        ],
-        "date": [
-            "2024-01-15", "2024-02-03", "2024-02-20",
-            "2024-03-01", "2024-03-10", "2024-03-15",
-        ],
-    })
-
-
-def test_create_graph_returns_a_figure():
-    fig = create_graph(_sample_df())
-    assert isinstance(fig, go.Figure)
-
-
-def test_create_graph2_splits_counts_by_sentiment_not_duplicated_totals():
-    fig = create_graph2(_sample_df())
-    trace_names = {trace.name for trace in fig.data}
-    assert trace_names.issubset({"Positive", "Neutral", "Negative"})
-    # regression check for the original bug: traces must NOT all be identical
-    values_per_trace = [tuple(trace.y) for trace in fig.data]
-    assert len(set(values_per_trace)) > 1
-
-
-def test_circle_uses_real_sentiment_counts_not_hardcoded_values():
-    df = _sample_df()
-    fig = circle(df)
-    values = sorted(fig.data[0].values)
-    expected = sorted(df["sentiment"].value_counts().tolist())
-    assert values == expected
-
-
-def test_generate_wordcloud_returns_a_figure():
-    fig = generate_wordcloud(_sample_df())
-    assert isinstance(fig, go.Figure)
-
-
-def test_time_series_returns_one_point_per_month_present():
-    fig = time_series(_sample_df())
-    assert isinstance(fig, go.Figure)
-    assert len(fig.data[0].x) == 3  # Jan, Feb, Mar in the sample
-
-
-def test_time_sentiment_returns_one_trace_per_sentiment_seen():
-    fig = time_sentiment(_sample_df())
-    trace_names = {trace.name for trace in fig.data}
-    assert trace_names == {"positive", "negative", "neutral"}
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `pytest tests/test_charts.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'dashboard.charts'`
-
-- [ ] **Step 3: Write `dashboard/charts.py`**
+- [ ] **Step 1: Write `dashboard/charts.py`**
 
 ```python
 """Chart-building functions for the sentiment dashboard."""
@@ -1554,15 +1420,80 @@ def time_sentiment(df: pd.DataFrame) -> go.Figure:
     return fig
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 2: Run a manual verification script**
 
-Run: `pytest tests/test_charts.py -v`
-Expected: 6 passed
-
-- [ ] **Step 5: Commit**
+This covers the same cases the (now-removed) test suite would have — in particular, it's a regression check that `create_graph2` and `circle` actually compute from real data rather than the original's hardcoded/duplicated values:
 
 ```bash
-git add dashboard/charts.py tests/test_charts.py
+python -c "
+import pandas as pd
+import plotly.graph_objects as go
+from dashboard.charts import (
+    circle,
+    create_graph,
+    create_graph2,
+    generate_wordcloud,
+    time_sentiment,
+    time_series,
+)
+
+
+def _sample_df():
+    return pd.DataFrame({
+        'reviewer_name': ['Alice', 'Bob', 'Alice', 'Carol', 'Bob', 'Alice'],
+        'sentiment': ['positive', 'negative', 'neutral', 'positive', 'positive', 'negative'],
+        'cleaned_comments': [
+            'great stay', 'bad service', 'ok place',
+            'lovely host', 'would return', 'too noisy',
+        ],
+        'date': [
+            '2024-01-15', '2024-02-03', '2024-02-20',
+            '2024-03-01', '2024-03-10', '2024-03-15',
+        ],
+    })
+
+df = _sample_df()
+
+fig = create_graph(df)
+assert isinstance(fig, go.Figure)
+print('create_graph: OK')
+
+fig = create_graph2(df)
+trace_names = {trace.name for trace in fig.data}
+assert trace_names.issubset({'Positive', 'Neutral', 'Negative'})
+values_per_trace = [tuple(trace.y) for trace in fig.data]
+assert len(set(values_per_trace)) > 1, 'create_graph2 regressed: traces are identical again'
+print('create_graph2: OK (traces differ, not duplicated totals)')
+
+fig = circle(df)
+values = sorted(fig.data[0].values)
+expected = sorted(df['sentiment'].value_counts().tolist())
+assert values == expected, 'circle regressed: not using real sentiment counts'
+print('circle: OK (real counts, not hardcoded [40,30,30])')
+
+fig = generate_wordcloud(df)
+assert isinstance(fig, go.Figure)
+print('generate_wordcloud: OK')
+
+fig = time_series(df)
+assert len(fig.data[0].x) == 3
+print('time_series: OK')
+
+fig = time_sentiment(df)
+trace_names = {trace.name for trace in fig.data}
+assert trace_names == {'positive', 'negative', 'neutral'}
+print('time_sentiment: OK')
+
+print('ALL CHECKS PASSED')
+"
+```
+
+Expected: six `OK` lines and `ALL CHECKS PASSED`. If `create_graph2` or `circle`'s assertion fails, the bug fix didn't take — fix `dashboard/charts.py` before moving on.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add dashboard/charts.py
 git commit -m "Add dashboard charts module, fix fake-data and sentiment-grouping bugs"
 ```
 
@@ -1717,30 +1648,31 @@ if __name__ == "__main__":
     app.run(debug=True)
 ```
 
-- [ ] **Step 2: Manual smoke test**
-
-```bash
-python -m dashboard.app
-```
-
-Expected: server starts on `http://127.0.0.1:8050` with no exceptions. Open it in a browser, click through Home / Uncleaned Data / Cleaned Data / Sentiment Analysis (try all six dropdown options, including "Reviews Over Time" and "Sentiment Over Time") / Provide Review (submit a sample review, confirm it returns a sentiment and appends to `data/user_reviews.csv`). Stop with Ctrl+C.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 2: Commit (code only — do not run it)**
 
 ```bash
 git add dashboard/app.py
 git commit -m "Add dashboard app, wire live prediction to Gradient Boosting model"
 ```
 
+**Stop here.** `python -m dashboard.app` needs `models/*.pkl` to exist, which requires the user to have already run notebook 2 (Task 4) — not guaranteed at this point in the plan. Report back with the exact command for the user to run themselves once models exist:
+
+```bash
+source /c/pyvenvs/airbnb-sentiment/Scripts/activate
+python -m dashboard.app
+```
+
+Expected when they run it: server starts on `http://127.0.0.1:8050` with no exceptions. They should click through Home / Uncleaned Data / Cleaned Data / Sentiment Analysis (all six dropdown options, including "Reviews Over Time" and "Sentiment Over Time") / Provide Review (submit a sample review, confirm it returns a sentiment and appends to `data/user_reviews.csv`).
+
 ---
 
-### Task 10: README, final verification, and GitHub push
+### Task 10: README (results pending user execution)
 
 **Files:**
 - Create: `README.md`
 
 **Interfaces:**
-- Consumes: actual results recorded from Tasks 4-6 (classical ML metrics, LSTM accuracy, DistilBERT accuracy) — insert the real numbers observed when those notebooks were executed, not placeholders.
+- None of Tasks 4-6's notebooks have been executed by this point (the user runs them) — this task writes the README with the results table honestly marked as pending, not filled with invented numbers. Finalizing it with real numbers and pushing to GitHub is a separate, later step (see "After this plan" at the very end) done once the user has actually run the notebooks.
 
 - [ ] **Step 1: Write `README.md`**
 
@@ -1764,7 +1696,7 @@ original research. What this project adds on top of the original:
 - Found and fixed two real bugs that meant the deep learning and LLM stages
   never actually learned anything (see "What was broken" below).
 - Got the full pipeline — preprocessing, classical ML, LSTM, DistilBERT, and
-  the dashboard — actually running end to end, with tests.
+  the dashboard — actually running end to end.
 
 ## Pipeline
 
@@ -1782,22 +1714,24 @@ original research. What this project adds on top of the original:
 
 ## Results
 
+**Pending — run `notebooks/2_classical_ml.ipynb`, `3_deep_learning_lstm.ipynb`,
+and `4_llm_bert.ipynb` (see Running It below) and copy each model's printed
+accuracy/precision/recall/F1 into the table below.** Numbers here will come
+from a different InsideAirbnb data snapshot than Taimour's original run, so
+they won't exactly match his reported ~90.2% — expected, and arguably more
+legitimate since they'll be numbers this project actually produced.
+
 | Model | Accuracy | Precision | Recall | F1 |
 |---|---|---|---|---|
-| Logistic Regression | _fill in from notebook 2 output_ | | | |
-| AdaBoost | _fill in_ | | | |
-| K-Neighbors | _fill in_ | | | |
-| Decision Tree | _fill in_ | | | |
-| Random Forest | _fill in_ | | | |
-| **Gradient Boosting (winner)** | _fill in_ | | | |
-| SVC | _fill in_ | | | |
-| LSTM | _fill in from notebook 3_ | — | — | — |
-| DistilBERT | _fill in from notebook 4_ | — | — | — |
-
-Note: these numbers come from a different InsideAirbnb data snapshot than
-Taimour's original run, so they won't exactly match his reported figures —
-expected, and arguably more legitimate since they're numbers this project
-actually produced.
+| Logistic Regression | — | — | — | — |
+| AdaBoost | — | — | — | — |
+| K-Neighbors | — | — | — | — |
+| Decision Tree | — | — | — | — |
+| Random Forest | — | — | — | — |
+| **Gradient Boosting (winner)** | — | — | — | — |
+| SVC | — | — | — | — |
+| LSTM | — | — | — | — |
+| DistilBERT | — | — | — | — |
 
 ### Why classical ML beat deep learning here
 
@@ -1830,7 +1764,7 @@ number too far.
 - `dashboard/charts.py` had two chart functions returning hardcoded fake
   data instead of computing anything from the real data, and one that
   claimed to group by sentiment but actually plotted the same totals three
-  times — all three fixed with tests covering the fix.
+  times — all three fixed.
 
 ## Known limitations
 
@@ -1846,37 +1780,45 @@ number too far.
 ```bash
 git clone <this-repo-url>
 cd airbnb-review-sentiment-analysis
-python -m venv .venv
+python -m venv .venv        # or any location you prefer
 source .venv/Scripts/activate  # Windows Git Bash
 pip install -r requirements.txt
 python -c "import nltk; [nltk.download(r, quiet=True) for r in ['punkt', 'punkt_tab', 'stopwords', 'wordnet', 'omw-1.4']]"
 ```
 
+(If you hit a Windows "path too long" error installing tensorflow/transformers,
+create the venv somewhere with a short path instead, e.g. `C:\venvs\airbnb`,
+rather than nested deep inside a cloned-repo path — this is a Windows
+`MAX_PATH` limitation, not a project bug.)
+
 ## Running it
 
-The cleaned dataset and the two models the dashboard needs are already
-committed, so you can go straight to:
+`data/cleaned/reviews.csv` is already committed, so you can start at notebook 2:
 
 ```bash
-python -m dashboard.app
-# open http://127.0.0.1:8050
-```
-
-To reproduce the full pipeline from raw data (slow — real download +
-training time):
-
-```bash
-python scripts/download_raw_data.py
-jupyter nbconvert --to notebook --execute --inplace notebooks/1_data_preprocessing.ipynb
 jupyter nbconvert --to notebook --execute --inplace notebooks/2_classical_ml.ipynb
 jupyter nbconvert --to notebook --execute --inplace notebooks/3_deep_learning_lstm.ipynb
 jupyter nbconvert --to notebook --execute --inplace notebooks/4_llm_bert.ipynb
 ```
 
-## Tests
+(or open them in Jupyter/VS Code and run cells interactively). Notebook 2
+produces the two model files the dashboard needs
+(`models/tfidf_vectorizer.pkl`, `models/gradient_boosting_model.pkl`) —
+run it before the dashboard. Notebooks 3 and 4 aren't required for the
+dashboard, just for the results comparison above.
+
+To reproduce from raw data instead (slow — real ~277MB download + a long
+CPU processing run):
 
 ```bash
-pytest
+jupyter nbconvert --to notebook --execute --inplace notebooks/1_data_preprocessing.ipynb
+```
+
+Once notebook 2 has run:
+
+```bash
+python -m dashboard.app
+# open http://127.0.0.1:8050
 ```
 
 ## License
@@ -1884,38 +1826,29 @@ pytest
 MIT — see `LICENSE`. Portions originally authored by Taimour Karim (2024-present).
 ```
 
-- [ ] **Step 2: Fill in the actual results table**
-
-Pull the real numbers from the executed notebooks (Tasks 4-6 outputs) and replace every `_fill in..._` cell with the actual observed values. This is not optional — do not leave placeholder text in the committed README.
-
-- [ ] **Step 3: Run the full test suite**
-
-```bash
-pytest -v
-```
-
-Expected: all tests pass (from Tasks 2, 3, 7, 8 — text cleaning, balancing, download decompress, pipeline, charts).
-
-- [ ] **Step 4: Commit the README**
+- [ ] **Step 2: Commit the README**
 
 ```bash
 git add README.md
-git commit -m "Add README with credits, results, and setup instructions"
+git commit -m "Add README with credits, setup instructions; results pending user run"
 ```
 
-- [ ] **Step 5: Create the GitHub repo and push**
+**Stop here — do not create or push to a GitHub repo yet.** The results table is honestly incomplete and the dashboard hasn't been confirmed working (both depend on the user running notebooks 2-4). Report back that the plan's automatable portion is done, and what's left is entirely the user's: run notebooks 2/3/4, smoke-test the dashboard, then finalize.
 
-Confirm with the user before this step (creates a public, externally-visible artifact under their account).
+---
+
+## After this plan: finalize with the user, then push
+
+Once the user has run `notebooks/2_classical_ml.ipynb`, `3_deep_learning_lstm.ipynb`, and `4_llm_bert.ipynb`, and confirmed `python -m dashboard.app` works:
+
+1. Read each notebook's final accuracy/precision/recall/F1 output and fill in the README's results table (replace the `—` cells) — do not invent numbers, use what was actually printed.
+2. Confirm `git ls-files data/raw/` shows nothing but `.gitkeep` (the ~277MB raw download must never be committed).
+3. Confirm with the user before creating a public GitHub repo (externally-visible artifact under their account):
 
 ```bash
 gh repo create airbnb-review-sentiment-analysis --public --source=. --remote=origin
 git push -u origin main
-```
-
-- [ ] **Step 6: Verify**
-
-```bash
 gh repo view --web
 ```
 
-Confirm the repo is visible, README renders correctly on GitHub (check the Credits section is prominent), and `.gitignore` correctly kept `data/raw/` out of the pushed history (`git ls-files data/raw/` should show nothing but `.gitkeep`).
+4. Verify the pushed README renders correctly on GitHub, with the Credits section prominent.
