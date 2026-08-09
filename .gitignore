@@ -10,3 +10,4 @@ catboost_info/
 .DS_Store
 *.egg-info/
 .superpowers/
+docs/superpowers/
