@@ -1,12 +1,12 @@
 pandas
 numpy
-scikit-learn
+scikit-learn==1.9.0  # pinned: models/*.pkl are pickled with this version — scikit-learn does not guarantee pickle compatibility across releases (see README)
 nltk
 textblob
 joblib
 tensorflow
 tf-keras
-transformers
+transformers==4.46.3  # pinned: transformers>=5 dropped TensorFlow model classes entirely (notebook 4 uses TFDistilBertForSequenceClassification)
 dash
 plotly
 wordcloud
@@ -15,4 +15,3 @@ seaborn
 requests
 tqdm
 jupyter
-jupytext

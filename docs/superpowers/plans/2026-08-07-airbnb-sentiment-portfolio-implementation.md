@@ -6,7 +6,7 @@
 
 **Architecture:** Four notebooks (`1_data_preprocessing`, `2_classical_ml`, `3_deep_learning_lstm`, `4_llm_bert`) form the pipeline, each producing artifacts the next stage (or the dashboard) consumes. Cleaning/balancing/download logic lives inline in notebook 1's own cells — no separate importable package. A `dashboard/` package separates data/model loading (`data.py`) from chart-building (`charts.py`) from Dash wiring (`app.py`).
 
-**Tech Stack:** Python 3.13, pandas, scikit-learn, NLTK, TextBlob, TensorFlow + tf-keras, HuggingFace Transformers (DistilBERT), Dash + Plotly, jupytext (for building notebooks from readable `.py` source).
+**Tech Stack:** Python 3.13, pandas, scikit-learn, NLTK, TextBlob, TensorFlow + tf-keras, HuggingFace Transformers (DistilBERT), Dash + Plotly. (Notebooks 1/3/4 were built via jupytext `.py` sources during implementation, for easier writing/reviewing — the `.py` sources and the `jupytext` dependency were removed after all tasks completed, once the `.ipynb` files existed and were the only thing anyone needed; see end of plan.)
 
 ## Amendment (mid-plan, after Task 3): notebook-native, user runs notebooks
 
@@ -53,7 +53,7 @@ airbnb-review-sentiment-analysis/
 ├── README.md, requirements.txt, .gitignore, LICENSE
 ├── docs/superpowers/specs/, docs/superpowers/plans/
 ├── notebooks/
-│   ├── 1_data_preprocessing.ipynb (+ paired .py via jupytext) — DONE
+│   ├── 1_data_preprocessing.ipynb — DONE
 │   ├── 2_classical_ml.ipynb
 │   ├── 3_deep_learning_lstm.ipynb (+ paired .py)
 │   └── 4_llm_bert.ipynb (+ paired .py)
@@ -1852,3 +1852,55 @@ gh repo view --web
 ```
 
 4. Verify the pushed README renders correctly on GitHub, with the Credits section prominent.
+
+## Addendum: post-completion changes
+
+All 10 tasks above completed and were reviewed clean. Two changes made after that, both directly requested by the user:
+
+- **No more automatic git commits.** Tasks 1-6 are committed (through `48509c4`); Tasks 7-10 (`dashboard/data.py`, `dashboard/charts.py`, `dashboard/app.py`, `data/user_reviews.csv`, `README.md`) are intentionally left uncommitted in the working tree. Nothing gets committed or pushed until the user explicitly says so — this supersedes the commit steps in Tasks 7-10 above and in "After this plan."
+- **Dropped the jupytext `.py` sources.** `notebooks/1_data_preprocessing.py`, `3_deep_learning_lstm.py`, and `4_llm_bert.py` were deleted (along with `jupytext` from `requirements.txt`) once all `.ipynb` files existed — they were a writing/reviewing aid during implementation, not something the finished project needs. The `.ipynb` files are the only copy of each notebook now.
+
+## Addendum 2: notebook 3's real bug the plan missed
+
+The user ran `notebooks/3_deep_learning_lstm.ipynb` (Task 5) themselves and it failed
+its own sanity-check assertion: stuck at 32.79% accuracy / loss ~1.099 — statistically
+identical to the *original, broken* notebook's numbers, despite the vocab-size fix.
+This was a real gap in Task 5's original diagnosis: reading the original notebook's
+code and cached output (never actually running it) correctly found the vocab
+mismatch, but missed a second, independent bug that alone was enough to prevent
+any learning.
+
+**Root cause, confirmed by actually running the training and inspecting predictions:**
+`max_length = max(len(seq) for seq in sequences)` set the pad length to the single
+longest review in the dataset (711 tokens), so a typical ~34-word review ended up
+padded with ~95% zeros — and the `Embedding` layer had no `mask_zero=True`, so the
+LSTM had no way to tell real content from padding. Predictions for every test example
+collapsed to nearly the same near-uniform output regardless of input (confirmed
+directly: `model.predict()` on 10 different reviews returned the same `[0.334, 0.331,
+0.334]` triple for all of them).
+
+**Fix, validated by re-running training (3 epochs) before touching the notebook:**
+cap `max_length` at the 95th percentile of sequence lengths (with `truncating="post"`
+for the rare longer reviews) instead of the single longest outlier, and add
+`mask_zero=True` to the `Embedding` layer. Result: accuracy 33% → 84% by epoch 3
+(val 88.5%), with genuinely differentiated per-example predictions. Applied directly
+to `notebooks/3_deep_learning_lstm.ipynb` (cells 0, 7, 11), and all stale
+execution outputs from the failed run were cleared so the notebook doesn't show
+misleading old numbers next to the new code. Not yet re-run end-to-end by the user
+at 20 epochs — that's next.
+
+Separately: the user's VS Code was executing notebooks with a different Python
+interpreter than `/c/pyvenvs/airbnb-sentiment` (also the root cause of the sklearn
+1.7.1-vs-1.9.0 mismatch on notebook 2's saved model) — guided them to select the
+correct interpreter via VS Code's kernel picker.
+
+**Follow-up bug in my own fix:** after the above, the user reported `model.summary()`
+(cell 11, right after `model.compile()`) showing all-zero param counts. Root cause:
+removing the deprecated `input_length=max_length` argument from the `Embedding` layer
+(done as a same-line cleanup while adding `mask_zero=True`) left the `Sequential`
+model with no way to know its input shape until first seeing real data — a Keras
+`Sequential` model stays unbuilt (no weights, no param counts) until `.fit()`/
+`.predict()` actually runs, so `model.summary()` called immediately after `compile()`
+had nothing to report. Fixed by adding an explicit `Input(shape=(max_length,))` as
+the model's first layer, confirmed by direct test (332,995 real params shown).
+Applied to cells 1 (import) and 11 (model definition); outputs cleared again.
