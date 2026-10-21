@@ -1,9 +1,9 @@
 # Airbnb Review Sentiment Analysis
 
 Classifies Airbnb reviews as negative / neutral / positive, comparing 7
-classical ML models against fine-tuned LSTM and DistilBERT approaches.
-(An interactive Dash dashboard for exploring the results is in progress —
-see "Dashboard" under Running It.)
+classical ML models against fine-tuned LSTM and DistilBERT approaches. An
+interactive Dash dashboard lets you browse the data, see sentiment
+breakdowns, and score a new review live (see "Dashboard" under Running It).
 
 ## Credits / Origin
 
@@ -18,7 +18,8 @@ original research. What this project adds on top of the original:
 - Found and fixed two real bugs that meant the deep learning and LLM stages
   never actually learned anything (see "What was broken" below).
 - Got the notebook pipeline — preprocessing, classical ML, LSTM, and
-  DistilBERT — actually running end to end (dashboard in progress).
+  DistilBERT — actually running end to end, and fixed the dashboard built
+  on top of it.
 
 ## Pipeline
 
@@ -32,8 +33,7 @@ original research. What this project adds on top of the original:
    sequences.
 4. **`notebooks/4_llm_bert.ipynb`** — fine-tuned DistilBERT.
 5. **`dashboard/`** — Dash app: browse the data, sentiment breakdowns, and
-   submit a review for a live prediction. *(In progress — not yet in this
-   repo; coming in a follow-up commit.)*
+   submit a review for a live prediction from the Gradient Boosting model.
 
 ## Results
 
@@ -44,7 +44,9 @@ coincidence. The 7 classical models report accuracy/precision/recall/F1 on a
 3,955-row held-out test set; LSTM and DistilBERT only print test
 accuracy/loss in their notebooks (LSTM: 0.3596 test loss; DistilBERT: 0.5577
 test loss — random-guess baseline for both is `ln(3) ≈ 1.0986`), so their
-precision/recall/F1 columns are blank below.
+precision/recall/F1 columns are blank below. "Accuracy" throughout means
+agreement with the TextBlob-derived labels, not with human judgment — see
+"Known limitations".
 
 | Model | Accuracy | Precision | Recall | F1 |
 |---|---|---|---|---|
@@ -114,6 +116,15 @@ worth keeping in mind before trusting any of these accuracy numbers too far.
   data instead of computing anything from the real data, and one that
   claimed to group by sentiment but actually plotted the same totals three
   times — all three fixed.
+- The dashboard's live-prediction form fed raw review text to a TF-IDF
+  vectorizer that was fitted on stemmed, stopword-stripped text, so most
+  words weren't in its vocabulary. Found during smoke testing; fixed by
+  running notebook 1's cleaning on the text first (`clean_text` in
+  `dashboard/data.py`). On a 1,500-row sample of the dataset, agreement with
+  the labels went from 74.7% to 90.1% (English-looking rows: 67.4% to
+  85.0%). That sample came from the full dataset, so ~80% of its rows were
+  seen in training — read the two figures as a before/after comparison, not
+  as test accuracy.
 
 ## Known limitations
 
@@ -121,6 +132,14 @@ worth keeping in mind before trusting any of these accuracy numbers too far.
   bins — a crude heuristic, not verified against human-labeled ground truth.
 - The dataset includes non-English reviews despite English-only
   preprocessing (stopwords, lemmatization, stemming).
+- The labels are confounded with language. In a rough check, only ~26% of
+  "negative" rows contain the English words "the" or "and", versus ~61% of
+  neutral and ~77% of positive rows, and the first rows of the negative class
+  are German, Spanish and Norwegian reviews that read as positive. TextBlob
+  uses an English lexicon, so it likely mis-scores foreign text (mechanism
+  not verified). Classifier scores on the negative class are therefore partly
+  language detection, and the dashboard's live form tends to call clearly
+  negative English reviews "neutral".
 - Notebook 1 can only be re-run from the InsideAirbnb raw download onward —
   the exact raw file the original pipeline used was never available.
 - `scikit-learn` is pinned in `requirements.txt` to the exact version
@@ -170,8 +189,20 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/1_data_preprocessi
 
 ### Dashboard
 
-Not yet in this repo — in progress, coming in a follow-up commit. It'll run
-via `python -m dashboard.app` (open `http://127.0.0.1:8050`) once added.
+Run it from the repo root:
+
+```bash
+python -m dashboard.app
+```
+
+then open `http://127.0.0.1:8050`. It loads `data/cleaned/reviews.csv`,
+`data/raw_sample.csv`, and the committed `models/*.pkl`, so it works straight
+after install without re-running any notebook (the first run downloads a few
+NLTK resources if they're missing). Pages: Home, Uncleaned Data (1,000-row raw
+sample), Cleaned Data, Sentiment Analysis (donut, word treemap, top reviewers,
+top reviewers by sentiment, volume over time, sentiment over time), and
+Provide Review, which scores the text you submit with the Gradient Boosting
+model and appends it to `data/user_reviews.csv`.
 
 ## License
 
